@@ -60,27 +60,55 @@ SUBROUTINE calcLOGjclark (DS,DL,TL,KERF,V)
  end subroutine calcLOGjclark
 
 
-real function calcLOGvolume(DS,DL,TL,V)
+real function calcLOGvolume(DS,DL,TL)
     implicit none
-    real, intent(in) :: DS,DL,TL,V
-    real :: pi=3.14159, A1=0.0, A2=0.0, Mds=0.0, Mdl=0.0, Mtl=0.0
+    real, intent(in) :: DS,DL,TL
+    real :: pi=3.14159, A1=0.0, A2=0.0, Mds=0.0, Mdl=0.0, Mtl=0.0, CurDL=0.0
+    CurDL=DL
+    if (DL <= 0) then
+       CurDL = DS + (5*.5)
+    endif
+    !conversion to metric units
+    !in
     Mds = (DS / 39.37) / 2.0
-    Mdl = (DL / 39.37) / 2.0
+    Mdl = (CurDL / 39.37) / 2.0
+    !ft
     Mtl = TL / 3.2808
-    A1 = pi * Mds * Mds
-    A2 = pi * Mdl * Mdl
-    V = ((Mds + A1) / 2.0) Mtl
+    A1 = pi * Mds ** 2
+    A2 = pi * Mdl ** 2
+    calcLOGvolume = ((A2 + A1) / 2.0) * Mtl
 end function calcLOGvolume
 
+subroutine getLogData(DS, DL, TL, KERF)
+    implicit none
+    real, intent(inout) :: DS, DL, TL
+    integer, intent(inout) :: KERF
+    real :: msrmnt
+    write(*,*)'to exit press ctrl+c'
+    write(*,*)'please input your values(unit of measurement)(input method)'
+    write(*,*)'Diameter inside Bark Small(in)(decimal):'
+    read(*,*)DS
+    write(*,*)'Diameter inside Bark Large(in)(decimal):'
+    read(*,*)DL
+    write(*,*)'Total Length(ft)(decimal):'
+    read(*,*)TL
+    write(*,*)'KERF(in)(decimal):'
+    read(*,*)msrmnt
+    KERF = 1
+    if(msrmnt < .25)KERF = 0
+    
+end subroutine getLogData
 
 program Log
    real :: DS=20.0, DL=0.0, TL=20.0, V=0
-   integer :: KERF=0
-
-   call calcLOGjclark(DS, DL, TL, KERF, V)
-   !V is board feet
-   trueV = calcLOGvolume(DS, DL, TL, V)
-   write(*,*)V, trueV
+   integer :: KERF=1
+   do
+      call getLogData(DS, DL, TL, KERF)
+      call calcLOGjclark(DS, DL, TL, KERF, V)
+      !V is board feet
+      trueV = calcLOGvolume(DS, DL, TL)
+      write(*,*)'board feet:',V, 'volume output:',trueV
+   end do
    !convert to volume in meters cubed
 
 end program Log
