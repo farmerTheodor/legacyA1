@@ -1,114 +1,138 @@
-SUBROUTINE calcLOGjclark (DS,DL,TL,KERF,V)
+SUBROUTINE calcLOGjclark (diameterSmall,diameterLarge,totalLength,KERF,volume)
 ! *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
 ! THIS SUBROUTINE WAS WRITTEN BY J.E.BRICKELL OF THE U.S.FOREST SERVICE
 ! TO CALCULATE BOARD FOOT VOLUME OF SAWLOGS BY THE INTERNATIONAL RULE.
 ! VARIABLES IN THE CALLING SEQUENCE ARE:
-! DS = LOG’S SCALING DIAMETER (INCHES)
-! DL = DIB AT LOG’S LARGE END (INCHES) (0.0 IF 1/2 INCH TAPER)
-! TL = TOTAL LOG LENGTH (FEET)
+! diameterSmall = LOG’S SCALING DIAMETER (INCHES)
+! diameterLarge = DIB AT LOG’S LARGE END (INCHES) (0.0 IF 1/2 INCH TAPER)
+! totalLength = TOTAL LOG LENGTH (FEET)
 ! KERF >0 IF KERF ASSUMPTION IS 1/4 INCH
 ! KERF <0, OR = 0, IF KERF ASSUMPTION IS 1/8 INCH
-! V = LOG VOLUME RETURNED TO THE CALLING PROGRAM
+! volume = LOG VOLUME RETURNED TO THE CALLING PROGRAM
 ! *-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
- V=0.0
+ 
+ volume=0.0
+
 ! IF TOTAL LOG LENGTH IS LESS THAN FOUR FEET NO BOARD FOOT VOLUME WILL BE
 ! COMPUTED.
- IF(TL-4.0 < 0)then
- RETURN
+ if(totalLength-4.0 < 0)then
+ return
  end if
+
 ! IF THE LOG’S LARGE END DIAMETER IS FURNISHED TO JCLARK A TAPER RATE
-! WILL BE COMPUTED. IF DL=0 THE STANDARD ASSUMPTION OF 1/2 INCH PER 4
+! WILL BE COMPUTED. IF diameterLarge=0 THE STANDARD ASSUMPTION OF 1/2 INCH PER 4
 ! FEET OF LOG LENGTH WILL BE USED.
- IF(DL > 0)then
-    T=4.0*(DL-DS)/TL
+ if(diameterLarge > 0)then
+    taperRate=4.0*(diameterLarge-diameterSmall)/totalLength
  else 
-    T=0.5
+    taperRate=0.5
  end if 
+
 ! THE FOLLOWING LOOP (THROUGH STATEMENT 5) FINDS OUT HOW MANY FULL 4
 ! FOOT SEGMENTS THE LOG CONTAINS.
  do I=1,20
-    IF(TL-FLOAT(4*I) < 0) exit
+    IF(totalLength-FLOAT(4*I) < 0) exit
  end do
- L=I-1
- SL=FLOAT(4*L)
+ numSegments=I-1
+ segmentedLength=FLOAT(4*numSegments)
+
 ! THE FOLLOWING STATEMENT MOVES THE SCALING DIAMETER DOWN TO THE END OF
 ! THE 4 FOOT SEGMENTS AND INCREASES IT ACCORDING TO TAPER.
- D=DS+(T/4.0)*(TL-SL)
+ diameter=diameterSmall+(taperRate/4.0)*(totalLength-segmentedLength)
+
 ! THE FOLLOWING LOOP (THROUGH STATEMENT 7) FINDS OUT HOW MANY FULL FEET
 ! OF LENGTH ARE IN THE SEGMENT LESS THAN 4 FEET LONG.
  do I=1,4
-    XI=FLOAT(I)
-    IF(SL-TL+XI > 0) exit
+    extraLength=FLOAT(I)
+    IF(segmentedLength-totalLength+extraLength > 0) exit
  end do
+
 ! THE NEXT THREE STATEMENTS CALCULATE LOG VOLUME IN THE 1, 2, OR 3 FOOT
 ! SEGMENT AT THE SMALL END OF THE LOG.
- XL=XI-1.0
- DEX=DS+(T/4.0)*(TL-SL-XL)
- VADD=0.055*XL*DEX*DEX-0.1775*XL*DEX
+ extraLength=extraLength-1.0
+ diameterInsideExtra=diameterSmall+(taperRate/4.0)*(totalLength-segmentedLength-extraLength)
+ volumeAdditional=0.055*extraLength*diameterInsideExtra*diameterInsideExtra-0.1775*extraLength*diameterInsideExtra
+
 ! THE FOLLOWING LOOP (THROUGH 9) CALCULATES VOLUME IN THE PORTION OF
 ! THE LOG CONTAINING WHOLE 4 FOOT SEGMENTS.
- do I=1,L
-    DC=D+T*FLOAT(I-1)
-    V=V+0.22*DC*DC-0.71*DC
+ do I=1,numSegments
+    diameterInside=diameter+taperRate*FLOAT(I-1)
+    volume=volume+0.22*diameterInside*diameterInside-0.71*diameterInside
  end do
- V=V+VADD
+ volume=volume+volumeAdditional
+
 ! IF ‘KERF’ IS GREATER THAN ZERO, INTERNATIONAL 1/8 INCH VOLUME AS
 ! COMPUTED ABOVE WILL BE CONVERTED TO INTERNATIONAL 1/4 INCH VOLUME.
- IF (KERF <=0)RETURN
- V=0.905*V
- RETURN
+ if (KERF <=0)return
+ volume=0.905*volume
+ return
  end subroutine calcLOGjclark
 
 
-real function calcLOGvolume(DS,DL,TL)
+real function calcLOGvolume(diameterSmall,diameterLarge,totalLength)
     implicit none
-    real, intent(in) :: DS,DL,TL
-    real :: pi=3.14159, A1=0.0, A2=0.0, Mds=0.0, Mdl=0.0, Mtl=0.0, CurDL=0.0
-    CurDL=DL
-    if (DL <= 0) then
-       CurDL = DS + (5*.5)
+    real, intent(in) :: diameterSmall,diameterLarge,totalLength
+    
+    !the 'm' in the variable names stand for metric
+    real :: A1=0.0, A2=0.0, mDiameterSmall=0.0, mDiameterLarge=0.0, mTotalLength=0.0, curDiameterLong=0.0
+    real, parameter :: pi=3.14159
+
+    !if a value was not given for diameter large then we estimate it here
+    curDiameterLong=diameterLarge
+    if (diameterLarge <= 0) then
+       curDiameterLong = diameterSmall + (5*.5)
     endif
+    
     !conversion to metric units
-    !in
-    Mds = (DS / 39.37) / 2.0
-    Mdl = (CurDL / 39.37) / 2.0
-    !ft
-    Mtl = TL / 3.2808
-    A1 = pi * Mds ** 2
-    A2 = pi * Mdl ** 2
-    calcLOGvolume = ((A2 + A1) / 2.0) * Mtl
+    !in inches
+    mDiameterSmall = (diameterSmall / 39.37) / 2.0
+    mDiameterLarge = (curDiameterLong / 39.37) / 2.0
+    
+    !in feet
+    mTotalLength = totalLength / 3.2808
+    
+    !calculate area of log ends
+    A1 = pi * mDiameterSmall ** 2
+    A2 = pi * mDiameterLarge ** 2
+    
+    !perform smalians formula
+    calcLOGvolume = ((A2 + A1) / 2.0) * mTotalLength
 end function calcLOGvolume
 
-subroutine getLogData(DS, DL, TL, KERF)
+subroutine getLogData(diameterSmall, diameterLarge, totalLength, KERF)
     implicit none
-    real, intent(inout) :: DS, DL, TL
+    real, intent(inout) :: diameterSmall, diameterLarge, totalLength
     integer, intent(inout) :: KERF
     real :: msrmnt
-    write(*,*)'to exit press ctrl+c'
+    write(*,*)'(to exit press ctrl+c)'
     write(*,*)'please input your values(unit of measurement)(input method)'
     write(*,*)'Diameter inside Bark Small(in)(decimal):'
-    read(*,*)DS
+    read(*,*)diameterSmall
     write(*,*)'Diameter inside Bark Large(in)(decimal):'
-    read(*,*)DL
+    read(*,*)diameterLarge
     write(*,*)'Total Length(ft)(decimal):'
-    read(*,*)TL
+    read(*,*)totalLength
     write(*,*)'KERF(in)(decimal):'
     read(*,*)msrmnt
+
+    !determine if 1/4" or 1/8 kerf is used(1 for 1/4, 0 for 1/8)
     KERF = 1
     if(msrmnt < .25)KERF = 0
     
 end subroutine getLogData
 
 program Log
-   real :: DS=20.0, DL=0.0, TL=20.0, V=0
+   real :: diameterSmall=20.0, diameterLarge=0.0, totalLength=20.0, volume=0
    integer :: KERF=1
    do
-      call getLogData(DS, DL, TL, KERF)
-      call calcLOGjclark(DS, DL, TL, KERF, V)
-      !V is board feet
-      trueV = calcLOGvolume(DS, DL, TL)
-      write(*,*)'board feet:',V, 'volume output:',trueV
-   end do
-   !convert to volume in meters cubed
+      !get input
+      call getLogData(diameterSmall, diameterLarge, totalLength, KERF)
 
+      !calculate output
+      call calcLOGjclark(diameterSmall, diameterLarge, totalLength, KERF, volume)
+      trueV = calcLOGvolume(diameterSmall, diameterLarge, totalLength)
+
+      !show output
+      write(*,*)'board feet:',volume, 'volume output(meters cubed):',trueV
+   end do
 end program Log
